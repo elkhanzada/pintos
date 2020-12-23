@@ -24,6 +24,9 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+
+static struct list sleep_list;
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -49,7 +52,6 @@ struct kernel_thread_frame
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
-
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
@@ -92,7 +94,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-
+  list_init(&sleep_list);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -120,10 +122,9 @@ thread_start (void)
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
-thread_tick (void) 
+thread_tick () 
 {
   struct thread *t = thread_current ();
-
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -133,7 +134,11 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
-
+    // printf("kernel %d", kernel_ticks);
+  if(!list_empty(&sleep_list)){
+    struct thread *next = list_entry(list_front(&sleep_list),struct thread,elem);
+    if(next->ticks<=kernel_ticks+idle_ticks) {list_pop_front(&sleep_list); thread_unblock(next);}
+  }
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -182,13 +187,11 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
   kf->function = function;
   kf->aux = aux;
-
   /* Stack frame for switch_entry(). */
   ef = alloc_frame (t, sizeof *ef);
   ef->eip = (void (*) (void)) kernel_thread;
@@ -312,6 +315,26 @@ thread_yield (void)
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
+}
+void thread_sleep(int64_t elapsed,int64_t ticks){
+  if(elapsed<ticks){
+    struct thread *cur = thread_current ();
+    enum intr_level old_level;
+    ASSERT (!intr_context ());
+    old_level = intr_disable ();
+    if(cur!=idle_thread){
+      cur->ticks = ticks;
+      list_insert_ordered(&sleep_list,&cur->elem,checkTicks,NULL);
+      thread_block();    
+    }
+    intr_set_level(old_level);
+  }
+  
+}
+bool checkTicks(struct list_elem *e1, struct list_elem *e2, void *aux){
+  struct thread *t1 = list_entry(e1,struct thread,elem);
+  struct thread *t2 = list_entry(e2, struct thread, elem);
+  return t1->ticks<t2->ticks;
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.

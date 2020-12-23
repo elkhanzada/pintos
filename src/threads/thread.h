@@ -86,8 +86,9 @@ struct thread
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
-    uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority. */
+    uint8_t *stack;
+    uint64_t ticks;                     /* Saved stack pointer. */
+    int priority;
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -110,7 +111,7 @@ extern bool thread_mlfqs;
 void thread_init (void);
 void thread_start (void);
 
-void thread_tick (void);
+void thread_tick ();
 void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
@@ -124,6 +125,8 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
+void thread_sleep(int64_t elapsed, int64_t ticks);
+bool checkTicks(struct list_elem *elem, struct list_elem *e, void *aux);
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
