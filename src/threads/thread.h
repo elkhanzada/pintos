@@ -128,6 +128,7 @@ void thread_exit (void) NO_RETURN;
 void thread_sleep(int64_t elapsed, int64_t ticks);
 bool checkTicks(struct list_elem *elem, struct list_elem *e, void *aux);
 void thread_yield (void);
+bool checkPriorities(struct list_elem *e1, struct list_elem *e2, void *aux);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);

@@ -200,10 +200,9 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-
   /* Add to run queue. */
   thread_unblock (t);
-
+  if(t->priority>thread_current()->priority) thread_yield();
   return tid;
 }
 
@@ -240,7 +239,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  // list_push_back(&ready_list,&t->elem);
+  list_insert_ordered (&ready_list, &t->elem, checkPriorities,NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -311,10 +311,15 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, checkPriorities, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
+}
+bool checkPriorities(struct list_elem *e1, struct list_elem *e2, void *aux){
+  struct thread *t1 = list_entry(e1,struct thread,elem);
+  struct thread *t2 = list_entry(e2, struct thread, elem);
+  return t1->priority>t2->priority;
 }
 void thread_sleep(int64_t elapsed,int64_t ticks){
   if(elapsed<ticks){
@@ -358,7 +363,13 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  thread_current()->priority = new_priority;
+  if(!list_empty(&ready_list)){
+    if(thread_current()->priority<list_entry(list_front(&ready_list),struct thread,elem)->priority)
+        thread_yield();
+  }
+  
+  
 }
 
 /* Returns the current thread's priority. */
@@ -578,11 +589,11 @@ schedule (void)
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
-
+  
   ASSERT (intr_get_level () == INTR_OFF);
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
-
+  
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
