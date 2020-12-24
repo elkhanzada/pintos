@@ -122,7 +122,7 @@ thread_start (void)
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
-thread_tick () 
+thread_tick (void) 
 {
   struct thread *t = thread_current ();
   /* Update statistics. */
@@ -134,12 +134,16 @@ thread_tick ()
 #endif
   else
     kernel_ticks++;
-    // printf("kernel %d", kernel_ticks);
+  /* Enforce preemption. */
   if(!list_empty(&sleep_list)){
     struct thread *next = list_entry(list_front(&sleep_list),struct thread,elem);
-    if(next->ticks<=kernel_ticks+idle_ticks) {list_pop_front(&sleep_list); thread_unblock(next);}
+    while (next->ticks<=kernel_ticks+idle_ticks)
+    {
+     list_pop_front(&sleep_list); thread_unblock(next);
+     if(list_empty(&sleep_list)) break;
+     next = list_entry(list_front(&sleep_list),struct thread,elem); 
+    }
   }
-  /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
 }
