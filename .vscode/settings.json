@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "ranges": "c"
+        "ranges": "c",
+        "*.inc": "c",
+        "system_error": "c"
     }
 }

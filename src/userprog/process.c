@@ -29,8 +29,13 @@ tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
-  tid_t tid;
+  char *save_ptr;
+  char *token;
+   tid_t tid;
+  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
+        token = strtok_r (NULL, " ", &save_ptr)){
 
+ 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -40,8 +45,10 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+        
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+        }
   return tid;
 }
 
@@ -463,3 +470,4 @@ install_page (void *upage, void *kpage, bool writable)
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
+
