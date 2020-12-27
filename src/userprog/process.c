@@ -29,13 +29,7 @@ tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
-  char *save_ptr;
-  char *token;
-   tid_t tid;
-  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
-        token = strtok_r (NULL, " ", &save_ptr)){
-
- 
+  tid_t tid;
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -48,7 +42,7 @@ process_execute (const char *file_name)
         
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
-        }
+        
   return tid;
 }
 
@@ -202,7 +196,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (char* argv,void **esp, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -221,6 +215,15 @@ load (const char *file_name, void (**eip) (void), void **esp)
   off_t file_ofs;
   bool success = false;
   int i;
+  char *save_ptr;
+  char *token;
+  int argc = 0;
+  int j = 0;
+  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
+        token = strtok_r (NULL, " ", &save_ptr)) argc++;
+  char argv[argc];
+  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
+        token = strtok_r (NULL, " ", &save_ptr)) argv[j++]=token;
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -309,7 +312,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (argv,esp,argc))
     goto done;
 
   /* Start address. */
@@ -434,7 +437,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (char* argv,void **esp, int argc) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -443,8 +446,21 @@ setup_stack (void **esp)
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
+      if (success){
         *esp = PHYS_BASE;
+        int size = 0;
+        for(int i = argc-1; i>=0;i--){
+          size = strlen(argv[i])+1;
+          esp-=size;
+          memcpy(esp,argv[i],size);
+        }
+        size = sizeof(char);
+        esp-=size;
+        memcpy(esp,&argv,size);
+        size = sizeof(int);
+        esp -= size;
+        memcpy(esp,argc,size);
+      }
       else
         palloc_free_page (kpage);
     }
