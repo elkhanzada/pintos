@@ -36,13 +36,10 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-        
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
-        
   return tid;
 }
 
@@ -54,14 +51,12 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -221,9 +216,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   int j = 0;
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
         token = strtok_r (NULL, " ", &save_ptr)) argc++;
-  char argv[argc];
+  char *argv[128];
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
         token = strtok_r (NULL, " ", &save_ptr)) argv[j++]=token;
+  for (i = 0; i<argc;i++) printf("%d\n",argc);
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -449,17 +445,27 @@ setup_stack (char* argv,void **esp, int argc)
       if (success){
         *esp = PHYS_BASE;
         int size = 0;
+        char *addresses[128];
         for(int i = argc-1; i>=0;i--){
           size = strlen(argv[i])+1;
           esp-=size;
+          addresses[i]=&argv[i];
           memcpy(esp,argv[i],size);
         }
-        size = sizeof(char);
+        for(int i = argc-1; i>=0;i--){
+          size = sizeof(addresses[i]);
+          esp-=size;
+          memcpy(esp,addresses[i],size);
+        }
+        size = sizeof(char*);
         esp-=size;
         memcpy(esp,&argv,size);
         size = sizeof(int);
         esp -= size;
         memcpy(esp,argc,size);
+        size = sizeof(void*);
+        esp-=size;
+        memcpy(esp,&argc,size);
       }
       else
         palloc_free_page (kpage);
