@@ -38,6 +38,7 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -84,7 +85,13 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  printf("child %d\n", child_tid);
+  printf("parent %d\n", thread_current()->tid);
+  while (true)
+  {
+    thread_yield();
+  }
+  
 }
 
 /* Free the current process's resources. */
@@ -191,7 +198,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (char* argv,void **esp, int argc);
+static bool setup_stack (char** argv,void **esp, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -213,14 +220,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *save_ptr;
   char *token;
   int argc = 0;
-  int j = 0;
-  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
-        token = strtok_r (NULL, " ", &save_ptr)) argc++;
   char *argv[128];
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
-        token = strtok_r (NULL, " ", &save_ptr)) argv[j++]=token;
-  for (i = 0; i<argc;i++) printf("%d\n",argc);
-
+        token = strtok_r (NULL, " ", &save_ptr)) argv[argc++] = token;
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
@@ -433,11 +435,11 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (char* argv,void **esp, int argc) 
+setup_stack (char** argv,void **esp, int argc) 
 {
   uint8_t *kpage;
   bool success = false;
-
+  
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
@@ -447,25 +449,25 @@ setup_stack (char* argv,void **esp, int argc)
         int size = 0;
         char *addresses[128];
         for(int i = argc-1; i>=0;i--){
-          size = strlen(argv[i])+1;
-          esp-=size;
+          size = (strlen(argv[i])+1)*sizeof(char);
+          *esp-=size;
           addresses[i]=&argv[i];
-          memcpy(esp,argv[i],size);
+          memcpy(*esp,argv[i],size);
         }
         for(int i = argc-1; i>=0;i--){
           size = sizeof(addresses[i]);
-          esp-=size;
-          memcpy(esp,addresses[i],size);
+          *esp-=size;
+          memcpy(*esp,addresses[i],size);
         }
         size = sizeof(char*);
-        esp-=size;
-        memcpy(esp,&argv,size);
-        size = sizeof(int);
-        esp -= size;
-        memcpy(esp,argc,size);
+        *esp-=size;
+        memcpy(*esp,&argv,size);
+        size = argc*sizeof(int);
+        *esp -= size;
+        memcpy(*esp,&argc,size);
         size = sizeof(void*);
-        esp-=size;
-        memcpy(esp,&argc,size);
+        *esp-=size;
+        memcpy(*esp,&argc,size);
       }
       else
         palloc_free_page (kpage);
