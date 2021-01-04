@@ -83,7 +83,9 @@ typedef int tid_t;
 struct thread
   {
     /* Owned by thread.c. */
-    tid_t tid;                          /* Thread identifier. */
+    tid_t tid;
+    tid_t child_tid;
+    bool isExiting;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;
@@ -129,7 +131,7 @@ void thread_sleep(int64_t elapsed, int64_t ticks);
 bool checkTicks(struct list_elem *elem, struct list_elem *e, void *aux);
 void thread_yield (void);
 bool checkPriorities(struct list_elem *e1, struct list_elem *e2, void *aux);
-
+struct thread* findThread(tid_t child_tid);
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);

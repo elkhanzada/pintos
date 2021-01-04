@@ -38,7 +38,7 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  
+  thread_current()->child_tid = tid;
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -85,13 +85,15 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  printf("child %d\n", child_tid);
-  printf("parent %d\n", thread_current()->tid);
-  while (true)
+  // printf("child %d\n", child_tid);
+  // printf("parent %d\n", thread_current()->tid);
+  struct thread* child = findThread(child_tid);
+  if(thread_current()->child_tid!=child_tid||child_tid==NULL) return -1;
+  while (!child->isExiting)
   {
     thread_yield();
   }
-  
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -223,6 +225,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *argv[128];
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
         token = strtok_r (NULL, " ", &save_ptr)) argv[argc++] = token;
+  argv[argc] = NULL;
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
@@ -439,7 +442,6 @@ setup_stack (char** argv,void **esp, int argc)
 {
   uint8_t *kpage;
   bool success = false;
-  
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
@@ -448,26 +450,29 @@ setup_stack (char** argv,void **esp, int argc)
         *esp = PHYS_BASE;
         int size = 0;
         char *addresses[128];
+        int bytes = 0;
         for(int i = argc-1; i>=0;i--){
           size = (strlen(argv[i])+1)*sizeof(char);
           *esp-=size;
-          addresses[i]=&argv[i];
+          addresses[i]=(char *)*esp;
           memcpy(*esp,argv[i],size);
         }
-        for(int i = argc-1; i>=0;i--){
-          size = sizeof(addresses[i]);
+        for(int i = argc; i>=0;i--){
+          size = sizeof(char*);
           *esp-=size;
-          memcpy(*esp,addresses[i],size);
+          memcpy(*esp,addresses+i,size);
         }
-        size = sizeof(char*);
+        char* start_addr = *esp;
+        size = sizeof(start_addr);
         *esp-=size;
-        memcpy(*esp,&argv,size);
+        memcpy(*esp,&start_addr,size);
         size = argc*sizeof(int);
         *esp -= size;
         memcpy(*esp,&argc,size);
         size = sizeof(void*);
+        int fake = 0;
         *esp-=size;
-        memcpy(*esp,&argc,size);
+        memcpy(*esp,&fake,size);
       }
       else
         palloc_free_page (kpage);

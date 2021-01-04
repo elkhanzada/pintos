@@ -2,6 +2,13 @@
     "files.associations": {
         "ranges": "c",
         "*.inc": "c",
-        "system_error": "c"
+        "system_error": "c",
+        "*.tcc": "c",
+        "exception": "c",
+        "memory_resource": "c",
+        "iosfwd": "c",
+        "new": "c",
+        "ostream": "c",
+        "streambuf": "c"
     }
 }

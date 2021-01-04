@@ -16,12 +16,37 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf("system call");
-  thread_exit ();
+
+  void *esp = f->esp;
+  int sysnum = *((int*)esp);
+  switch (sysnum)
+  {
+  case 9:
+    esp+=sizeof(int);
+    int fd = *((int*)esp);
+    esp+=sizeof(int);
+    const void* buff = *((void **) esp);
+    esp+=sizeof(void*);
+    unsigned size = *((unsigned*)esp);
+    printf("%d\n",write(fd,buff,size));
+    break;
+  
+  default:
+    break;
+  }
+
+  thread_exit();  
 }
 void halt(void){
   shutdown_power_off();
 }
 void exit(int status){
-  
+
+}
+int write(int fd,const void *buff, unsigned size){
+  if(fd==1){
+      putbuf(buff,size);
+    return size;
+  }
+
 }

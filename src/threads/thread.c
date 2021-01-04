@@ -290,6 +290,7 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
+  thread_current()->isExiting = true;
   process_exit ();
 #endif
 
@@ -339,6 +340,16 @@ void thread_sleep(int64_t elapsed,int64_t ticks){
     intr_set_level(old_level);
   }
   
+}
+struct thread* findThread(tid_t child_tid){
+    struct list_elem *e;
+    for (e = list_begin (&all_list); e != list_end (&all_list);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, allelem);
+      if(t->tid==child_tid) return t;
+    }
+    return NULL;
 }
 bool checkTicks(struct list_elem *e1, struct list_elem *e2, void *aux){
   struct thread *t1 = list_entry(e1,struct thread,elem);
