@@ -200,7 +200,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (char** argv,void **esp, int argc);
+static bool setup_stack (char* argv[],void **esp, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -233,10 +233,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (argv[0]);
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", argv[0]);
       goto done; 
     }
 
@@ -438,7 +438,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (char** argv,void **esp, int argc) 
+setup_stack (char* argv[],void **esp, int argc) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -457,6 +457,10 @@ setup_stack (char** argv,void **esp, int argc)
           addresses[i]=(char *)*esp;
           memcpy(*esp,argv[i],size);
         }
+        uint8_t word_align = 0;
+        size = sizeof(uint8_t);
+        *esp-=size;
+        memcpy(*esp,&word_align,size);
         for(int i = argc; i>=0;i--){
           size = sizeof(char*);
           *esp-=size;
@@ -466,13 +470,18 @@ setup_stack (char** argv,void **esp, int argc)
         size = sizeof(start_addr);
         *esp-=size;
         memcpy(*esp,&start_addr,size);
-        size = argc*sizeof(int);
+        size = sizeof(int);
         *esp -= size;
         memcpy(*esp,&argc,size);
-        size = sizeof(void*);
+        size = sizeof(void(*) ());
         int fake = 0;
         *esp-=size;
         memcpy(*esp,&fake,size);
+
+          //Debugging
+  uintptr_t ofs = *((uintptr_t *)esp);
+  int bytesize = 0xc0000000-ofs;
+  hex_dump(ofs,esp,bytesize,true);
       }
       else
         palloc_free_page (kpage);

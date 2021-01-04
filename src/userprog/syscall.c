@@ -19,16 +19,20 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   void *esp = f->esp;
   int sysnum = *((int*)esp);
+  esp+=sizeof(int);
+
   switch (sysnum)
   {
-  case 9:
-    esp+=sizeof(int);
+  case 9:;
     int fd = *((int*)esp);
     esp+=sizeof(int);
     const void* buff = *((void **) esp);
     esp+=sizeof(void*);
     unsigned size = *((unsigned*)esp);
-    printf("%d\n",write(fd,buff,size));
+    esp+=sizeof(unsigned);
+    int returnVal = write(fd,buff,size);
+    f->eax = returnVal;
+    printf("%d\n",returnVal);
     break;
   
   default:
@@ -46,7 +50,7 @@ void exit(int status){
 int write(int fd,const void *buff, unsigned size){
   if(fd==1){
       putbuf(buff,size);
-    return size;
+      return size;
   }
 
 }
