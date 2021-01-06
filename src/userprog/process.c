@@ -93,7 +93,7 @@ process_wait (tid_t child_tid UNUSED)
   {
     thread_yield();
   }
-  return -1;
+  return 3;
 }
 
 /* Free the current process's resources. */
@@ -222,7 +222,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *save_ptr;
   char *token;
   int argc = 0;
-  char *argv[128];
+  char *argv[64];
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
         token = strtok_r (NULL, " ", &save_ptr)) argv[argc++] = token;
   argv[argc] = NULL;
@@ -449,14 +449,16 @@ setup_stack (char* argv[],void **esp, int argc)
       if (success){
         *esp = PHYS_BASE;
         int size = 0;
-        char *addresses[128];
+        char *addresses[64];
         int bytes = 0;
         for(int i = argc-1; i>=0;i--){
           size = (strlen(argv[i])+1)*sizeof(char);
           *esp-=size;
           addresses[i]=(char *)*esp;
+          bytes+=size;
           memcpy(*esp,argv[i],size);
         }
+        addresses[argc]=NULL;
         uint8_t word_align = 0;
         size = sizeof(uint8_t);
         *esp-=size;
@@ -477,7 +479,6 @@ setup_stack (char* argv[],void **esp, int argc)
         int fake = 0;
         *esp-=size;
         memcpy(*esp,&fake,size);
-
           //Debugging
   uintptr_t ofs = *((uintptr_t *)esp);
   int bytesize = 0xc0000000-ofs;
