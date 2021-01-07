@@ -29,7 +29,15 @@ tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
+  char* temp[strlen(file_name)+1];
+  strlcpy(temp,file_name,strlen(file_name)+1);
   tid_t tid;
+  int i = 0;
+  char *save_ptr;
+  char *token;
+  for (token = strtok_r (temp, " ", &save_ptr); token != NULL;
+        token = strtok_r (NULL, " ", &save_ptr)) if(i==0) break;
+  
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -37,7 +45,7 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
   thread_current()->child_tid = tid;
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
@@ -85,15 +93,13 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  // printf("child %d\n", child_tid);
-  // printf("parent %d\n", thread_current()->tid);
   struct thread* child = findThread(child_tid);
   if(thread_current()->child_tid!=child_tid||child_tid==NULL) return -1;
   while (!child->isExiting)
   {
     thread_yield();
   }
-  return 3;
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -222,7 +228,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *save_ptr;
   char *token;
   int argc = 0;
-  char *argv[64];
+  char *argv[128];
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
         token = strtok_r (NULL, " ", &save_ptr)) argv[argc++] = token;
   argv[argc] = NULL;
@@ -315,7 +321,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Set up stack. */
   if (!setup_stack (argv,esp,argc))
     goto done;
-
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
 
@@ -449,7 +454,7 @@ setup_stack (char* argv[],void **esp, int argc)
       if (success){
         *esp = PHYS_BASE;
         int size = 0;
-        char *addresses[64];
+        char *addresses[128];
         int bytes = 0;
         for(int i = argc-1; i>=0;i--){
           size = (strlen(argv[i])+1)*sizeof(char);
@@ -457,12 +462,12 @@ setup_stack (char* argv[],void **esp, int argc)
           addresses[i]=(char *)*esp;
           bytes+=size;
           memcpy(*esp,argv[i],size);
-        }
+        } 
         addresses[argc]=NULL;
-        uint8_t word_align = 0;
-        size = sizeof(uint8_t);
-        *esp-=size;
-        memcpy(*esp,&word_align,size);
+        uint8_t word_align[3] = {0,0,0};
+        size = bytes % 4;
+        *esp -= size;
+        memcpy (*esp, word_align, size);
         for(int i = argc; i>=0;i--){
           size = sizeof(char*);
           *esp-=size;
@@ -479,16 +484,13 @@ setup_stack (char* argv[],void **esp, int argc)
         int fake = 0;
         *esp-=size;
         memcpy(*esp,&fake,size);
-          //Debugging
-  uintptr_t ofs = *((uintptr_t *)esp);
-  int bytesize = 0xc0000000-ofs;
-  hex_dump(ofs,esp,bytesize,true);
       }
       else
         palloc_free_page (kpage);
     }
   return success;
 }
+
 
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.
