@@ -5,7 +5,30 @@
 #include "threads/thread.h"
 #include "threads/init.h"
 
+static int file_descriptor = 1;
 static void syscall_handler (struct intr_frame *);
+void halt(void){
+  shutdown_power_off();
+}
+void exit(int status){
+  printf("%s: exit(%d)\n",thread_name(),status);
+  thread_exit();
+}
+int write(int fd,const void *buff, unsigned size){
+  if(fd==1){
+      putbuf(buff,size);
+      return size;
+  }
+}
+ bool create (const char *file, unsigned initial_size){
+    return filesys_create(file,initial_size);
+ }
+int open (const char *file)
+{
+  struct file* my_file =  filesys_open(file);
+  if(my_file!=NULL) {file_descriptor+=1; return file_descriptor;}
+  else return -1;
+}
 
 void
 syscall_init (void) 
@@ -19,43 +42,45 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   void *esp = f->esp;
   int sysnum = *((int*)esp);
-  //printf("%d\n",sysnum);
   esp+=sizeof(int);
   switch (sysnum)
   {
-  case 1:
-    exit(0);
-    break;  
+  case 0:
+    halt();
+    break;
+  case 1:;
+    int exitVal = *((int* )esp);
+    if(exitVal<-1000) exit(-1);
+    exit(exitVal);
+    break;
+  case 4:;
+    const char* file = *((char**)esp);
+    if(file==NULL) exit(-1);
+    esp+=sizeof(char*);
+    unsigned initial_size = *((unsigned*)esp);
+    esp+=sizeof(unsigned);
+    bool ret1 = create (file,initial_size);
+    f->eax = ret1;
+    break;
+  case 6:;
+    const char* open_file = *((char**)esp);
+    if(open_file==NULL) exit(-1);
+    int ret2 = open(open_file);
+    f->eax = ret2;
+    break;
   case 9:;
     int fd = *((int*)esp);
     esp+=sizeof(int);
-    //hex_dump(esp,esp,100,1);
     const void* buff = *((void **) esp);
     esp+=sizeof(void*);
     unsigned size = *((unsigned*)esp);
     esp+=sizeof(unsigned);
-    //printf("size %d\n",size);
-    int returnVal = write(fd,buff,size);
-    f->eax = returnVal;
-    //printf("%d\n",returnVal);
+    int ret3 = write(fd,buff,size);
+    f->eax = ret3;
     break;
-  
   default:
     break;
   }
 
 }
-void halt(void){
-  shutdown_power_off();
-}
-void exit(int status){
-  printf("%s: exit(%d)\n",thread_name(),status);
-  thread_exit();
-}
-int write(int fd,const void *buff, unsigned size){
-  if(fd==1){
-      putbuf(buff,size);
-      return size;
-  }
 
-}
