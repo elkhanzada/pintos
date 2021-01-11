@@ -6,6 +6,8 @@
 #include "threads/init.h"
 
 static int file_descriptor = 1;
+static struct file* my_file = NULL;
+
 static void syscall_handler (struct intr_frame *);
 void halt(void){
   shutdown_power_off();
@@ -14,20 +16,42 @@ void exit(int status){
   printf("%s: exit(%d)\n",thread_name(),status);
   thread_exit();
 }
+int exec (const char* cmd){
+    int res = process_wait(process_execute(cmd));
+    return res;
+}
+
+int wait(int pid){
+    int res =  process_wait(pid);
+    printf("Result : %d\n", res);
+    return res;
+}
 int write(int fd,const void *buff, unsigned size){
   if(fd==1){
       putbuf(buff,size);
       return size;
+  }else
+  {
+    return file_write(my_file,buff,size);
+
   }
+  
 }
  bool create (const char *file, unsigned initial_size){
     return filesys_create(file,initial_size);
  }
 int open (const char *file)
 {
-  struct file* my_file =  filesys_open(file);
+  my_file =  filesys_open(file);
   if(my_file!=NULL) {file_descriptor+=1; return file_descriptor;}
   else return -1;
+}
+int read (int fd, void *buffer, unsigned size){
+  return file_read(my_file, buffer, size);
+}
+
+int filesize(int fd){
+  return file_length(my_file);
 }
 
 void
@@ -53,30 +77,55 @@ syscall_handler (struct intr_frame *f UNUSED)
     if(exitVal<-1000) exit(-1);
     exit(exitVal);
     break;
+  case 2:;
+    const char* cmd = *((char**)esp);
+    esp+=sizeof(char*);
+    int pid_exec = exec (cmd);
+    f->eax = pid_exec;
+    break;
+  case 3:;
+    int pid_wait = *((int*)esp);
+    esp+=sizeof(int);
+    f->eax = wait(pid_wait);
   case 4:;
-    const char* file = *((char**)esp);
-    if(file==NULL) exit(-1);
+    const char* create_file = *((char**)esp);
+    if(create_file==NULL) exit(-1);
     esp+=sizeof(char*);
     unsigned initial_size = *((unsigned*)esp);
     esp+=sizeof(unsigned);
-    bool ret1 = create (file,initial_size);
-    f->eax = ret1;
+    bool ret_create = create (create_file,initial_size);
+    f->eax = ret_create;
     break;
   case 6:;
     const char* open_file = *((char**)esp);
     if(open_file==NULL) exit(-1);
-    int ret2 = open(open_file);
-    f->eax = ret2;
+    int ret_open = open(open_file);
+    f->eax = ret_open;
+    break;
+  case 7:;
+    int fd_size = *((int*)esp);
+    esp+=sizeof(int);
+    f->eax = filesize(fd_size);
+    break;
+  case 8:;
+    int fd_read = *((int*)esp);
+    esp+=sizeof(int);
+    const void* buff_read = *((void**)esp);
+    //printf(" size %u ", *buff_read);
+    esp+=sizeof(void*);
+    unsigned size_read = *((unsigned*)esp);
+    int ret_read = read (fd_read, buff_read, size_read);
+    f->eax = ret_read;
     break;
   case 9:;
-    int fd = *((int*)esp);
+    int fd_arg = *((int*)esp);
     esp+=sizeof(int);
-    const void* buff = *((void **) esp);
+    const void* buff_arg = *((void **) esp);
     esp+=sizeof(void*);
-    unsigned size = *((unsigned*)esp);
+    unsigned size_arg = *((unsigned*)esp);
     esp+=sizeof(unsigned);
-    int ret3 = write(fd,buff,size);
-    f->eax = ret3;
+    int ret_arg = write(fd_arg,buff_arg,size_arg);
+    f->eax = ret_arg;
     break;
   default:
     break;

@@ -99,7 +99,7 @@ process_wait (tid_t child_tid UNUSED)
   {
     thread_yield();
   }
-  return -1;
+  return child->status;
 }
 
 /* Free the current process's resources. */
