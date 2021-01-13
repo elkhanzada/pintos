@@ -7,24 +7,37 @@
 
 static int file_descriptor = 1;
 static struct file* my_file = NULL;
-
+static int cur_status = -1;
+static int cur_pid = -1;
 static void syscall_handler (struct intr_frame *);
 void halt(void){
   shutdown_power_off();
 }
 void exit(int status){
+  cur_status = status;
+  cur_pid = thread_tid();
   printf("%s: exit(%d)\n",thread_name(),status);
   thread_exit();
 }
 int exec (const char* cmd){
-    int res = process_wait(process_execute(cmd));
-    return res;
+    int tid = process_execute(cmd);
+    struct thread* child = findThread(tid);
+    if(child==NULL) return -1;
+    while(!child->isExiting){
+      thread_yield();
+    }
+    return tid;
 }
 
 int wait(int pid){
-    int res =  process_wait(pid);
-    printf("Result : %d\n", res);
-    return res;
+  struct thread* child = findThread(pid);
+  if(child==NULL)if(cur_pid==pid)return cur_status;
+  if(thread_current()->child_tid!=pid||child==NULL) return -1;
+  while (!child->isExiting)
+  {
+    thread_yield();
+  }
+  return cur_status;
 }
 int write(int fd,const void *buff, unsigned size){
   if(fd==1){
@@ -40,6 +53,12 @@ int write(int fd,const void *buff, unsigned size){
  bool create (const char *file, unsigned initial_size){
     return filesys_create(file,initial_size);
  }
+
+bool remove (const char *file){
+  return filesys_remove (file);
+}
+
+
 int open (const char *file)
 {
   my_file =  filesys_open(file);
@@ -52,6 +71,14 @@ int read (int fd, void *buffer, unsigned size){
 
 int filesize(int fd){
   return file_length(my_file);
+}
+
+void seek (int fd, unsigned position) {
+  file_seek(my_file,position);
+}
+
+unsigned tell (int fd) {
+  return file_tell(my_file);
 }
 
 void
@@ -87,6 +114,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     int pid_wait = *((int*)esp);
     esp+=sizeof(int);
     f->eax = wait(pid_wait);
+    break;
   case 4:;
     const char* create_file = *((char**)esp);
     if(create_file==NULL) exit(-1);
@@ -95,6 +123,13 @@ syscall_handler (struct intr_frame *f UNUSED)
     esp+=sizeof(unsigned);
     bool ret_create = create (create_file,initial_size);
     f->eax = ret_create;
+    break;
+  case 5:;
+    const char* remove_file = *((char**)esp);
+    if(remove_file==NULL) exit(-1);
+    esp+=sizeof(char*);
+    bool ret_remove = remove(remove_file);
+    f->eax = ret_remove;
     break;
   case 6:;
     const char* open_file = *((char**)esp);
@@ -126,6 +161,19 @@ syscall_handler (struct intr_frame *f UNUSED)
     esp+=sizeof(unsigned);
     int ret_arg = write(fd_arg,buff_arg,size_arg);
     f->eax = ret_arg;
+    break;
+  case 10:;
+    int fd_seek = *((int *)esp);
+    esp+=sizeof(int);
+    unsigned position = *((unsigned*)esp);
+    esp+=sizeof(unsigned);
+    seek(fd_seek,position);
+    break;
+  case 11:;
+    int fd_tell = *((int*)esp);
+    esp+=sizeof(int);
+    unsigned ret_tell = tell(fd_tell);
+    f->eax = ret_tell;
     break;
   default:
     break;

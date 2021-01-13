@@ -68,7 +68,7 @@ start_process (void *file_name_)
   success = load (file_name, &if_.eip, &if_.esp);
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success)
     thread_exit ();
 
   /* Start the user process by simulating a return from an
@@ -94,11 +94,11 @@ int
 process_wait (tid_t child_tid UNUSED) 
 {
   struct thread* child = findThread(child_tid);
-  if(thread_current()->child_tid!=child_tid||child_tid==NULL) return -1;
+  if(thread_current()->child_tid!=child_tid||child==NULL) return -1;
   while (!child->isExiting)
   {
     thread_yield();
-  }
+  }  
   return child->status;
 }
 
@@ -325,8 +325,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
-
- done:
+  done:
   /* We arrive here whether the load is successful or not. */
   file_close (file);
   return success;
