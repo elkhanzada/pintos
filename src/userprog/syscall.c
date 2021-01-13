@@ -23,7 +23,7 @@ int exec (const char* cmd){
     int tid = process_execute(cmd);
     struct thread* child = findThread(tid);
     if(child==NULL) return -1;
-    while(!child->isExiting){
+    while(child->isExiting){
       thread_yield();
     }
     return tid;
@@ -31,7 +31,7 @@ int exec (const char* cmd){
 
 int wait(int pid){
   struct thread* child = findThread(pid);
-  if(child==NULL)if(cur_pid==pid)return cur_status;
+  // if(child==NULL)if(cur_pid==pid)return cur_status;
   if(thread_current()->child_tid!=pid||child==NULL) return -1;
   while (!child->isExiting)
   {

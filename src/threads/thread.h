@@ -85,7 +85,7 @@ struct thread
     /* Owned by thread.c. */
     tid_t tid;
     tid_t child_tid;
-    bool isExiting;                     /* Thread identifier. */
+    bool isExiting;                   /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;
